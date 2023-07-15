@@ -1,0 +1,50 @@
+---
+
+- name: Install firefox
+  community.general.pacman:
+    name: firefox
+    state: present
+
+# https://github.com/mozilla/policy-templates
+# Get extension ID from about:debugging#/runtime/this-firefox
+- name: Configure firefox policies
+  ansible.builtin.copy:
+    src: policies.json
+    dest: /usr/lib/firefox/distribution/policies.json
+    owner: root
+    group: root
+    mode: '0644'
+
+# When policies are not enough: https://github.com/ghacksuserjs/ghacks-user.js/blob/master/user.js
+
+- name: Create firefox user.js folder
+  ansible.builtin.file:
+    path: "{{ user.home }}/.mozilla/firefox"
+    state: directory
+    mode: 'u+rwX'
+    owner: "{{ user.name }}"
+    group: "{{ user.group }}"
+    recurse: true
+
+- name: Configure firefox user.js
+  ansible.builtin.copy:
+    src: user.js
+    dest: "{{ user.home }}/.mozilla/firefox"
+    owner: "{{ user.name }}"
+    group: "{{ user.group }}"
+    mode: '0600'
+
+- name: List Firefox profiles
+  ansible.builtin.shell: grep -oP 'Path=\K.*' "{{ user.home }}/.mozilla/firefox/profiles.ini"
+  register: ff_profiles
+  ignore_errors: true
+  changed_when: 2+2==5
+
+- name: Create a symbolic link
+  loop: "{{ ff_profiles.stdout_lines }}"
+  ansible.builtin.file:
+    src: "{{ user.home }}/.mozilla/firefox/user.js"
+    dest: "{{ user.home }}/.mozilla/firefox/{{ item }}/user.js"
+    owner: "{{ user.name }}"
+    group: "{{ user.group }}"
+    state: link
